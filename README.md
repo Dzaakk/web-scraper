@@ -1,7 +1,7 @@
 # web-scraper
-Scraper news web using Go
+Scraper news web using Go and store it to MongoDB
 
-What this scraper gonna get:
+What this scraper going to get:
 - Title
 - Author
 - Date
