@@ -9,12 +9,9 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"sync"
-	"time"
 
-	"github.com/gocolly/colly"
+	"github.com/gocolly/colly/v2"
 	"github.com/qiniu/qmgo"
-	"gopkg.in/mgo.v2/bson"
 )
 
 type DataNews struct {
@@ -98,47 +95,48 @@ func scraperNews(maxPost, maxPaging int) {
 		}
 	}()
 
-	coll := client.Database("scraper_app").Collection("news")
+	// coll := client.Database("scraper_app").Collection("news")
 
 	News := colly.NewCollector()
 	DetailNews := News.Clone()
 
-	// Use wait group to synchronize insertions
-	var wg sync.WaitGroup
+	counter := 1
+	News.OnHTML("div.width-100.mb24.terkini", func(e *colly.HTMLElement) {
 
-	News.OnHTML("div.grid-kanal-small.height-120px.sm-height-16-9 a", func(e *colly.HTMLElement) {
-		wg.Add(1) // Increment the wait group counter
-
-		// Wait group's Done() should be called at the end of the function
-		defer wg.Done()
-
-		DetailNewsURL := e.Attr("href")
-		DetailNews.OnHTML("div.left-section", func(d *colly.HTMLElement) {
-			data := DataNews{
-				Title:   d.ChildText("div.detail-title"),
-				Author:  d.ChildText("div.detail-nama-redaksi"),
-				Date:    d.ChildText("div.detail-date-artikel"),
-				Content: d.ChildText("div.detail-desc"),
-			}
-
-			fmt.Printf("Scraped: %s\n", data.Title)
-
-			// Insert data to MongoDB
-			_, err := coll.InsertOne(context.TODO(), bson.M{
-				"title":   data.Title,
-				"author":  data.Author,
-				"date":    data.Date,
-				"content": data.Content,
-			})
-			if err != nil {
-				log.Println("Failed to insert data:", err)
+		e.ForEach("div.width-100.mb24.sm-pl15.sm-pr15", func(_ int, link *colly.HTMLElement) {
+			if counter <= maxPost {
+				NewsURL := link.ChildAttr("a", "href")
+				DetailNews.OnHTML("div.left-section", func(d *colly.HTMLElement) {
+					data := DataNews{
+						Title:   d.ChildText("div.detail-title"),
+						Author:  d.ChildText("div.detail-nama-redaksi"),
+						Date:    d.ChildText("div.detail-date-artikel"),
+						Content: d.ChildText("div.detail-desc"),
+					}
+					fmt.Printf("News-%d\n", counter)
+					fmt.Printf("Title : %s\n", data.Title)
+					fmt.Printf("Author: %s\n", data.Author)
+					fmt.Printf("Date: %s\n", data.Date)
+					fmt.Printf("Content: %s", data.Content)
+					fmt.Println("-----------------------------")
+					// Insert data to MongoDB
+					// _, err := coll.InsertOne(context.TODO(), bson.M{
+					// 	"title":   data.Title,
+					// 	"author":  data.Author,
+					// 	"date":    data.Date,
+					// 	"content": data.Content,
+					// })
+					if err != nil {
+						log.Println("Failed to insert data:", err)
+					}
+				})
+				err := DetailNews.Visit(NewsURL)
+				if err != nil {
+					fmt.Println("Error:", err)
+				}
+				counter++
 			}
 		})
-
-		err := DetailNews.Visit(DetailNewsURL)
-		if err != nil {
-			fmt.Println("Error:", err)
-		}
 	})
 
 	err = News.Visit(URLMaker(maxPaging))
@@ -146,12 +144,8 @@ func scraperNews(maxPost, maxPaging int) {
 		fmt.Println("Error:", err)
 	}
 
-	// Wait for all insertions to complete before proceeding
-	time.Sleep(1 * time.Second)
-	wg.Wait()
-
 }
 
 func main() {
-	scraperNews(5, 5)
+	scraperNews(2, 5)
 }
