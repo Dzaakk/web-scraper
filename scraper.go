@@ -29,6 +29,9 @@ func Post(maxPost int) int {
 	if count > 20 {
 		count = 20
 	}
+	if count > 0 && count < 20 {
+		count = count
+	}
 
 	return count
 }
@@ -100,12 +103,12 @@ func scraperNews(maxPost, maxPaging int) {
 	News := colly.NewCollector()
 	DetailNews := News.Clone()
 
-	counter := 1
+	counter := 1 // Declare counter outside of the loop
+	NewsURL := ""
 	News.OnHTML("div.width-100.mb24.terkini", func(e *colly.HTMLElement) {
-
 		e.ForEach("div.width-100.mb24.sm-pl15.sm-pr15", func(_ int, link *colly.HTMLElement) {
-			if counter <= maxPost {
-				NewsURL := link.ChildAttr("a", "href")
+			NewsURL = link.ChildAttr("a", "href")
+			if counter < maxPost {
 				DetailNews.OnHTML("div.left-section", func(d *colly.HTMLElement) {
 					data := DataNews{
 						Title:   d.ChildText("div.detail-title"),
@@ -119,22 +122,12 @@ func scraperNews(maxPost, maxPaging int) {
 					fmt.Printf("Date: %s\n", data.Date)
 					fmt.Printf("Content: %s", data.Content)
 					fmt.Println("-----------------------------")
-					// Insert data to MongoDB
-					// _, err := coll.InsertOne(context.TODO(), bson.M{
-					// 	"title":   data.Title,
-					// 	"author":  data.Author,
-					// 	"date":    data.Date,
-					// 	"content": data.Content,
-					// })
-					if err != nil {
-						log.Println("Failed to insert data:", err)
-					}
+					counter++
 				})
-				err := DetailNews.Visit(NewsURL)
+				err = DetailNews.Visit(NewsURL)
 				if err != nil {
 					fmt.Println("Error:", err)
 				}
-				counter++
 			}
 		})
 	})
@@ -147,5 +140,5 @@ func scraperNews(maxPost, maxPaging int) {
 }
 
 func main() {
-	scraperNews(2, 5)
+	scraperNews(3, 5)
 }
